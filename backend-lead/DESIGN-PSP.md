@@ -7,48 +7,46 @@ To make adding a new PSP a safe, one-day task for a junior engineer, we decouple
 ## Architecture Sketch
 
 ```
-                        [ Incoming Webhook / Redirect ]
+                              [ Incoming Webhook ]
                                        │
                                        ▼
                        ┌──────────────────────────────┐
                        │    Generic PSP Controller    │
-                       │ (/api/v1/psp/:provider/...) │
+                       │ (/api/v1/psp/:provider/...)  │
                        └──────────────┬───────────────┘
-                                       │
+                                      │
                          Lookup adapter in Registry
-                                       │
-                                       ▼
+                                      │
+                                      ▼
                        ┌──────────────────────────────┐
                        │      IPspAdapter Engine      │
                        └──────────────┬───────────────┘
-                                       │
-              ┌────────────────────────┼────────────────────────┐
-              │                        │                        │
-              ▼                        ▼                        ▼
-     ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
-     │  StripeAdapter  │      │  PayMayaAdapter │      │ NewJuniorAdapter│
-     └────────┬────────┘      └────────┬────────┘      └────────┬────────┘
-              │                        │                        │
-              └────────────────────────┴────────────────────────┘
-                                       │
+                                      │
+              ┌───────────────────────┼────────────────────────┐
+              │                       │                        │
+              ▼                       ▼                        ▼
+     ┌─────────────────┐      ┌────────────────┐      ┌─────────────────┐
+     │  StripeAdapter  │      │  MomoAdapter   │      │    NewAdapter   │
+     └────────┬────────┘      └───────┬────────┘      └────────┬────────┘
+              │                       │                        │
+              └───────────────────────┴────────────────────────┘
+                                      │
                        1. Verify Signature (Raw Payload)
                        2. Normalize Payload to Domain Object
-                                       │
-                                       ▼
+                                      │
+                                      ▼
                        ┌──────────────────────────────┐
                        │ NormalizedTransaction Payload│
                        │  (Standard Units, Standard   │
                        │     Status Enums, UTC)       │
                        └──────────────┬───────────────┘
-                                       │
-                                       ▼
+                                      │
+                                      ▼
                        ┌──────────────────────────────┐
-                       │    Core Wallet Domain Engine │
-                       │ (DB Locks, Balance Credit)   │
+                       │   Core Wallet Domain Engine  │
+                       │  (DB Locks, Balance Credit)  │
                        └──────────────────────────────┘
 ```
-
----
 
 ## 1. Core Abstraction & Interface
 
@@ -56,15 +54,15 @@ A junior engineer only ever touches **one file**: implementing `IPspAdapter`. Th
 
 ```typescript
 export enum NormalizedStatus {
-  PENDING = 'PENDING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
+  PENDING = "PENDING",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
 }
 
 export interface NormalizedTransaction {
   pspRef: string;
   status: NormalizedStatus;
-  amountInMinorUnits: bigint; // Internal standard: BigInt minor units (cents)
+  amountInMinorUnits: bigint;
   currency: string;
   rawPayload: Record<string, unknown>;
 }
@@ -75,7 +73,11 @@ export interface IPspAdapter {
   /**
    * Cryptographically verifies signature using raw payload before parsing
    */
-  verifySignature(headers: Record<string, string>, rawBody: Buffer, secret: string): boolean;
+  verifySignature(
+    headers: Record<string, string>,
+    rawBody: Buffer,
+    secret: string,
+  ): boolean;
 
   /**
    * Normalizes disparate PSP payloads, minor/major unit conversions, status enums
@@ -85,7 +87,11 @@ export interface IPspAdapter {
   /**
    * Maps internal deposit intent into PSP-specific outward request
    */
-  buildDepositRequest(intent: { pspRef: string; amountInMinorUnits: bigint; currency: string }): Record<string, unknown>;
+  buildDepositRequest(intent: {
+    pspRef: string;
+    amountInMinorUnits: bigint;
+    currency: string;
+  }): Record<string, unknown>;
 }
 ```
 
@@ -94,8 +100,8 @@ export interface IPspAdapter {
 ## 2. Verification, Normalization & Config-Driven Registry
 
 1. **Signature Verification & Normalization**:
-   - Signature verification occurs **at the perimeter** in the adapter using the `rawBody` Buffer *before* JSON parsing to avoid formatting discrepancies.
-   - Normalization converts provider-specific status vocabulary (e.g., `00`, `CAP`, `success`) into `NormalizedStatus` and major units (`100.00 USD`) into standard minor integer units (`10000n`).
+   - Signature verification occurs in the adapter using the `rawBody` Buffer before JSON parsing to avoid formatting discrepancies.
+   - Normalization converts provider-specific status vocabulary into `NormalizedStatus` and major units (`100.00 USD`) into standard minor integer units (`10000n`).
 
 2. **Configuration-Driven Registry**:
    - PSP credentials and features are managed via environment variables/config tables.
@@ -122,6 +128,7 @@ export class PspRegistry {
 ## 3. Safely Onboarding a Junior Engineer (1-Day Workflow)
 
 A junior engineer's task list is strictly scoped:
+
 1. **Create Adapter**: Implement `IPspAdapter` in `src/adapters/<new-psp>.ts`.
 2. **Register**: Add `PspRegistry.register(new NewPspAdapter())` in the adapter index.
 3. **Write Contract Unit Tests**: Write unit test suites using pre-recorded raw fixtures without deploying or touching DB logic.
@@ -149,7 +156,11 @@ describe("NewPSPAdapter Contract Tests", () => {
   });
 
   test("rejects invalid signature", () => {
-    const isValid = adapter.verifySignature(sampleCallback.headers, Buffer.from(JSON.stringify(sampleCallback.body)), "invalid_secret");
+    const isValid = adapter.verifySignature(
+      sampleCallback.headers,
+      Buffer.from(JSON.stringify(sampleCallback.body)),
+      "invalid_secret",
+    );
     expect(isValid).toBe(false);
   });
 });

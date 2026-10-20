@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Server (Nodemon/TS-Node)",
+      "cwd": "${workspaceFolder}/starter",
+      "skipFiles": ["<node_internals>/**"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev" // Hoặc lệnh khởi động dev của anh trong package.json (ví dụ: start:dev)
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    }
+  ]
+}
